@@ -1,0 +1,388 @@
+---
+title: "Fantasy Football - Post Draft"
+author: "Robert Conacher"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(fig.width = 8, collapse = TRUE, echo = TRUE)
+#Load Libraries
+library(readxl)   
+library(tidyverse)
+library(rvest)
+library(forcats)
+library(latexpdf)
+library(kableExtra)
+library(scales)
+library(treemap)
+library(ggridges)
+library(gt)
+library(RColorBrewer)
+```
+
+```{r include = FALSE}
+#Import Data
+FF <- read_excel("FF-2020.xlsx", sheet = "FF")
+mydata <- FF
+
+#Load Team Data
+Team <- read_excel("FF-2020.xlsx", sheet = "Teams")
+
+#Clean Data
+mydata$team <- factor(mydata$team)
+mydata$position <- factor(mydata$position)
+mydata$tier <- factor(mydata$tier)
+
+#Clean Team Data
+Team$Div <- factor(Team$Div)
+Team$Conf <- factor(Team$Conf)
+Team$TeamName <- factor(Team$TeamName)
+Team$Byes <- factor(Team$Byes)
+
+# Add Conf, Div & Full Team Names to dataset
+mydata <- inner_join(mydata, Team, by = "team")
+
+
+#Load Draft Data
+Draft <- read_excel("Draft.xlsx", sheet = "Draft")
+
+#Cleran Data
+Draft$FF_Team <- as.factor(Draft$FF_Team)
+Draft$D_round <- as.integer(Draft$D_round)
+Draft$D_pick <- as.integer(Draft$D_pick)
+Draft$adquire <- as.factor(Draft$adquire)
+Draft$draft_pos <- as.integer(Draft$draft_pos)
+
+# Join two data frames into one
+FF <- full_join(Draft, mydata, by = c('players' = 'player')) %>%
+  filter(FF_Team != " ")
+
+#Impute missing points
+# Asign to impute to show imputed or not
+  FF <- FF %>%
+  mutate(impute = if_else(is.na(points), 1,0))
+  
+# Store averages by position 
+average_pts_pos <- FF %>%
+  filter(!is.na(points)) %>%
+  group_by(position) %>%
+  summarize(mean(points))
+average_pts_pos
+
+
+FF <- FF %>%
+  group_by(position) %>%
+  mutate(mean_pts = if_else(is.na(points), mean(points,na.rm=TRUE), points))
+  
+
+FF %>%
+  filter(impute == 1) %>%
+  select(position, players, position, impute, points, mean_pts)
+
+```
+
+
+## Keepers
+
+```{r Keeper1, include = FALSE}
+FF %>%
+  filter(FF_Team == "LA Rams") %>%
+  ggplot(aes(x = position, y = mean_pts, color = Div, size = points)) + 
+  geom_point() +
+  facet_wrap(~Conf)
+```
+
+The 2020 season is about to start and the keepers are in and the draft is compl;eted. How did everyone do?
+Well that's a slightly more complicated question to answer. 
+
+There are many projections missing:
+
+  1. impacts to teams and players due to the number of players not playing the season due to COVID-19
+  2. lots of new rookies that have not been league tested
+  3. Free agency on players that do not have a home this season 
+  4. players returning from lengthy suspensions
+
+Any project points that were missing due to the above were imputed with the average points for each position.
+
+Total projections for all teams are slightly miss leading due to above issues. Also, some teams went very heavy on a specific position (such as Denver and Flutie Flakes - securing 4 Quarterbacks).
+
+At the end, I have summarized for each Owner by their average projected points per position. This then allows Owners to do some comparisons to judge for themselves how well their draft / draft + keepers did against the other Owners.
+
+Enjoy, and have a great season!
+
+## Keepers Listing
+```{r keeper1, echo = FALSE}
+#KLeepers
+#FF %>%
+#  filter(adquire == "Keeper") %>%
+#  select(FF_Team, players, position, mean_pts) %>%
+#  group_by(FF_Team, mean_pts) %>%
+#  mutate(FP = seq_len(n())) %>%
+#  arrange(FF_Team, FP, desc(mean_pts), players) %>%
+#  kbl() %>%
+#  kable_paper("hover", full_width = F)
+
+
+
+FF %>%
+  filter(adquire == "Keeper") %>%
+  select(FF_Team, players, position, mean_pts) %>%
+  group_by(FF_Team) %>%
+  mutate(FF_Team = fct_reorder(FF_Team, mean_pts)) %>%
+  arrange(FF_Team, desc(mean_pts), players) %>%
+  mutate(Keep = row_number()) %>%
+  
+  gt(rowname_col = "Keep", groupname_col = "FF_Team") %>%
+  tab_header(
+    title = md("**2020 Keepers**"),
+    subtitle = md("Sorted by FF_Team & mean_pts")
+  ) %>%
+  tab_source_note(md(""))
+
+
+
+
+```
+
+
+## Keepers Chart
+```{r keep2, echo = FALSE}
+# Team Keepers
+FF %>%
+  filter(adquire == "Keeper") %>%
+  select(FF_Team, players, position, mean_pts) %>%
+  ggplot(aes(x = mean_pts , y = fct_reorder(players, mean_pts))) +
+  geom_col() +
+  scale_x_continuous(limits = c(0, 500)) +
+  facet_wrap(~ FF_Team, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+```
+
+
+## Draft Listing
+```{r draft1, echo = FALSE}
+#Draft
+#FF %>%
+#  filter(adquire == "Draft") %>%
+#  select(FF_Team, players, position, mean_pts) %>%
+#  arrange(FF_Team, desc(mean_pts), players) %>%
+#  kbl() %>%
+#  kable_paper("hover", full_width = F)
+
+
+FF %>%
+  filter(adquire == "Draft") %>%
+  select(FF_Team, players, position, mean_pts) %>%
+  group_by(FF_Team) %>%
+  mutate(FF_Team = fct_reorder(FF_Team, mean_pts)) %>%
+  arrange(FF_Team, desc(mean_pts), players) %>%
+  mutate(Keep = row_number()) %>%
+  
+  gt(rowname_col = "Draft", groupname_col = "FF_Team") %>%
+  tab_header(
+    title = md("**2020 Draft**"),
+    subtitle = md("Sorted by FF_Team & mean_pts")
+  ) %>%
+  tab_source_note(md(""))
+
+```
+
+
+## Draft Chart
+```{r draft2, echo = FALSE}
+# Team Keepers
+FF %>%
+  filter(adquire == "Draft") %>%
+  filter(!is.na(mean_pts)) %>%
+  select(FF_Team, players, position, mean_pts) %>%
+  ggplot(aes(x = mean_pts , fct_reorder(players, mean_pts))) +
+  geom_col() +
+  scale_x_continuous(limits = c(0, 500)) +
+  facet_wrap(~ FF_Team, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+
+
+## Treeemap1
+```{r treemap1, echo = FALSE}
+# Treemap
+
+treemap(FF,
+            index=c("FF_Team","players"),
+            vSize="mean_pts",
+            type="index",
+            title="2020 NFL FF Team Distributions (Based on Players and Projected Points)"
+            ) 
+```
+
+
+## Treemap2
+
+```{r treemap2, echo = FALSE}
+#Treemap 2
+FF %>%
+   filter_all(any_vars(! is.na(.))) %>%
+treemap(FF, #Your data frame object
+        index=c("FF_Team", "position"),  #A list of your categorical variables
+        vSize = "mean_pts",  #This is your quantitative variable
+        type="index", #Type sets the organization and color scheme of your treemap
+        palette = "Greens",  #Select your color palette from the RColorBrewer presets or make your own.
+        title="2020 NFL FF Team Distributions (Based on Positions and Projected Points)", #Customize your title
+        fontsize.title = 12 #Change the font size of the title
+        )
+```
+
+```{r treetop3, echo = FALSE}
+#Treemap 3
+FF %>%
+   filter_all(any_vars(! is.na(.))) %>%
+treemap(FF, #Your data frame object
+        index=c("position"),  #A list of your categorical variables
+        vSize = "mean_pts",  #This is your quantitative variable
+        type="index", #Type sets the organization and color scheme of your treemap
+        palette = "Reds",  #Select your color palette from the RColorBrewer presets or make your own.
+        title="2020 NFL Distributions (Based on Positions)", #Customize your title
+        fontsize.title = 12 #Change the font size of the title
+        )
+```
+
+```{r treetop4, echo = FALSE}
+#Treemap 4
+FF %>%
+   filter_all(any_vars(! is.na(.))) %>%
+treemap(FF, #Your data frame object
+        index=c("Conf", "position"),  #A list of your categorical variables
+        vSize = "mean_pts",  #This is your quantitative variable
+        type="index", #Type sets the organization and color scheme of your treemap
+        palette = "Reds",  #Select your color palette from the RColorBrewer presets or make your own.
+        title="2020 NFL Distributions (Based on Positions within Conf)", #Customize your title
+        fontsize.title = 12 #Change the font size of the title
+        )
+```
+
+```{r treetop5, echo = FALSE}
+#Treemap 5
+FF %>%
+   filter_all(any_vars(! is.na(.))) %>%
+treemap(FF, #Your data frame object
+        index=c("Conf", "Div", "position"),  #A list of your categorical variables
+        vSize = "mean_pts",  #This is your quantitative variable
+        type="index", #Type sets the organization and color scheme of your treemap
+        palette = "Reds",  #Select your color palette from the RColorBrewer presets or make your own.
+        title="2020 NFL Distributions (Based on Positions within Conf and Division)", #Customize your title
+        fontsize.title = 12 #Change the font size of the title
+        )
+```
+
+
+## Post Analysis
+
+```{r last, echo = FALSE}
+ Total_points <- FF %>%
+  drop_na(points) %>%
+  select(FF_Team, D_round, D_pick, players, position, mean_pts) %>%
+  group_by(FF_Team) %>%
+  summarise(Total_pts = sum(mean_pts)) %>%
+  mutate(FF_Team = fct_reorder(FF_Team, desc(Total_pts))) %>%
+  arrange(FF_Team, Total_pts)
+
+# Total Projected Points post Draft by FF_Team   
+ ggplot(Total_points, aes(FF_Team, Total_pts)) + 
+    geom_point()+
+   theme(axis.text.x = element_text(angle = 90, hjust = 1))
+    
+    Total_points %>%
+  kbl() %>%
+  kable_paper("hover", full_width = F)
+ 
+  aa <- FF %>%
+  select(FF_Team, D_round, D_pick, players, position, mean_pts) %>%
+  drop_na(mean_pts) %>%
+  group_by(FF_Team, position) %>%
+  summarise(Mean_Pts_Pos = mean(mean_pts)) %>%
+  mutate(FF_Team = fct_reorder(FF_Team, desc(Mean_Pts_Pos))) %>%
+  arrange(FF_Team, position, Mean_Pts_Pos)
+ 
+  aa %>%
+    pivot_wider(names_from = "position", values_from = "Mean_Pts_Pos") 
+  
+  FF %>%
+    ggplot(aes(x = position, y = mean_pts)) + 
+    geom_boxplot() +
+    facet_wrap(~ FF_Team)
+
+FF %>%
+  filter(!is.na(mean_pts)) %>%
+  ggplot(aes(x = mean_pts, y = position)) +
+  geom_density_ridges()+
+  labs(title = "Point Distibution by Position for whole FF League")
+  
+
+#FF %>%
+#  filter(!is.na(mean_pts)) %>%
+#  filter(position == "DB") %>%
+#  group_by(FF_Team) %>%
+#  mutate(FF_Team = fct_reorder(FF_Team, mean_pts, mean)) %>%
+#  ggplot(aes(x = FF_Team, y = mean_pts)) +
+#  geom_point(aes(color = position)) +
+#  geom_boxplot() +
+#  geom_jitter(position = "jitter") +
+#  theme(axis.text.x = element_text(angle = 90, hjust = 1)) + 
+#  facet_wrap(~ position, scales = "free") + 
+#  coord_flip()
+ 
+```
+
+```{r Top5_pos, echo = FALSE}
+# Who had the top 5 player at each position?
+Top_5 <- FF %>%
+    filter(!is.na(mean_pts)) %>%
+    group_by(position) %>%
+    mutate(position = fct_reorder(position, mean_pts)) %>% 
+    top_n(n = 5) %>%
+    select(position, mean_pts, players, adquire, FF_Team) %>%
+    arrange(position, desc(mean_pts), players, adquire, FF_Team) 
+
+Top_5 <- data.frame(Top_5)    
+  
+Top_5 %>%
+  gt(rowname_col = "players", groupname_col = "position") %>%
+  tab_header(
+    title = md("**2020 FF - Top5 for Each Positions"),
+    subtitle = md("Sorted by Position & Players")
+  ) %>%
+  tab_source_note(md(""))
+
+
+```
+
+```{r Top5_all, echo = TRUE}
+# Who had the most top 5 regardless of position?    
+Top_5 %>%
+  group_by(FF_Team) %>%
+  count(FF_Team, sort = TRUE)
+```
+```{r}
+Top5_cnt <- Top_5 %>%
+  count(FF_Team) 
+
+ggplot(Top5_cnt, aes(x = fct_reorder(FF_Team, n), y = n)) +
+  geom_col() +
+  coord_flip() + 
+  labs(title = "How many players were kept or drafted that are top 5 players",
+        subtitle = "(Based on Projected Points)") +
+  ylab("Total Number of top 5 players") +
+  xlab("Fantasy Team - Owner")
+```
+
+
+## Summary
+
+- Most of the top 5 for each position were keepers (77%) & draft (23%)
+- 1 teams (Bishop Bucs) had 0 player in the top 5 positions
+- 1 team (Mellonville) did not draft DL position
+- Denver and Flutie Flakes - securing 4 Quarterbacks
+
