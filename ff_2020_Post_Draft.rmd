@@ -1,8 +1,9 @@
 ---
-title: "Fantasy Football - Post Draft"
+title: "FF_2020-Post Draft"
 author: "Robert Conacher"
-date: "`r format(Sys.Date(), '%B %d, %Y')`"
-output: html_document
+Date: '`r format(Sys.Date(), "%B %d, %Y")`'
+fig_width: 8 
+fig_height: 6 
 ---
 
 ```{r setup, include = FALSE}
@@ -382,7 +383,10 @@ ggplot(Top5_cnt, aes(x = fct_reorder(FF_Team, n), y = n)) +
 ## Summary
 
 - Most of the top 5 for each position were keepers (77%) & draft (23%)
-- 1 teams (Bishop Bucs) had 0 player in the top 5 positions
-- 1 team (Mellonville) did not draft DL position
-- Denver and Flutie Flakes - securing 4 Quarterbacks
+- 3 teams had 6 player in the top 5 positions
+- 2 teams had 5 player in the top 5 positions
+- 3 teams had 4 player in the top 5 positions
+- 1 teams had 3 player in the top 5 positions
+- 1 teams had 1 player in the top 5 positions
+- 1 teams had 0 player in the top 5 positions
 
